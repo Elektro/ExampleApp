@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+{% autoescape true %}
+<html>
+    <head>
+        <script type="text/javascript">
+            var Speakap = { appId: "{{appId|safe}}", consumerSecret: "{{consumerSecret|safe}}" };
+        </script>
+        <script type="text/javascript" src="js/jquery.min.js"></script>
+        <script type="text/javascript" src="js/speakap.js"></script>
+    </head>
+    <body>
+        <p>Hello <span class="js-name">Anonymous</span>!</p>
+        <script type="text/javascript">
+            Speakap.getUser().then(function(user) {
+                $(".js-name").text(user.fullName);
+            });
+        </script>
+    </body>
+</html>
+{% endautoescape %}
