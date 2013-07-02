@@ -3,17 +3,73 @@
 <html>
     <head>
         <script type="text/javascript">
-            var Speakap = { appId: "{{appId|safe}}", consumerSecret: "{{consumerSecret|safe}}" };
+            var Speakap = { appId: "{{ appId|safe }}", consumerSecret: "{{ consumerSecret|safe }}" };
         </script>
         <script type="text/javascript" src="js/jquery.min.js"></script>
         <script type="text/javascript" src="js/speakap.js"></script>
+        <style type="text/css">
+            .avatar {
+                background-clip: padding-box;
+                border: 0;
+                border-radius: 10px;
+                height: 20px;
+                width: 20px;
+            }
+            .voters {
+                float: right;
+            }
+        </style>
     </head>
     <body>
-        <p>Hello <span class="js-name">Anonymous</span>!</p>
+        <h1>Office Supplies & Groceries</h1>
+        <p><i>The items listed here are the highest ranked products requested. <a href="/">Refresh List</a></i></p>
+        <hr>
+        {% for product in products %}
+        <p>
+            {{ product.name }}
+            <span class="voters">
+                {% for voter in product.voters %}
+                <img src="" alt="" class="avatar" data-voter-id="{{ voter|safe }}">
+                {% endfor %}
+            </span>
+        </p>
+        {% endfor %}
+        <hr>
+        <p><i>Submit your own request:</i></p>
+        <form action="/" method="POST">
+            <p>
+                <input type="text" name="productName" size="40">
+                <input type="submit" value="Request">
+            </p>
+        </form>
         <script type="text/javascript">
-            Speakap.getUser().then(function(user) {
-                $(".js-name").text(user.fullName);
-            });
+            function init() {
+
+                $("a, form").each(function() {
+                    var attrName = (this.tagName === "FORM" ? "action" : "href");
+                    var href = $(this).attr(attrName);
+                    if (href.substr(0, 1) === "/") {
+                        var separator = (href.indexOf("?") > -1 ? "&" : "?");
+                        var parameters = "cs={{ consumerSecret|safe }}&u={{ userEID|safe }}";
+                        $(this).attr(attrName, href + separator + parameters);
+                    }
+                });
+
+                var userMap = {};
+                $(".avatar").each(function() {
+                    var userId = $(this).data("voter-id");
+                    if (!userMap[userId]) {
+                        Speakap.API.ajax("/users/" + userId + "/").then(function(user) {
+                            $(".avatar[data-voter-id='" + userId + "']")
+                                .attr("src", user.avatarThumbnailUrl)
+                                .attr("alt", user.fullName);
+                        });
+                        userMap[userId] = true;
+                    }
+                });
+            }
+
+            init();
         </script>
     </body>
 </html>

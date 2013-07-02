@@ -12,7 +12,7 @@
         // Browser globals.
         window.Speakap = factory(jQuery);
     }
-}(function($) {
+}(function($, undefined) {
 
     "use strict";
 
@@ -26,7 +26,7 @@
     var Speakap = {};
 
     /**
-     * App ID. This UD is expected to be set on the global Speakap object before this library is
+     * App ID. This ID is expected to be set on the global Speakap object before this library is
      * loaded.
      */
     Speakap.appId = window.Speakap.appId || "APP ID NOT SET";
@@ -53,6 +53,9 @@
          *   but the App ID is sent along, possibly limiting the scope to which the app has access.
          * - Error handlers will receive an error object (with code and message properties) as their
          *   first argument, instead of a jqXHR object.
+         * - The URL property is interpreted as a path under the Speakap API, limited in scope to
+         *   the current network. Eg. use "/users/" to request
+         *                                    "https://api.speakap.nl/networks/:networkEID/users/".
          * - The only supported HTTP method is GET.
          */
         ajax: function(url, settings) {
@@ -68,6 +71,7 @@
             settings.type = "GET";
 
             var context = settings.context;
+            delete settings.context;
 
             var successCallback = settings.success;
             delete settings.success;
@@ -75,15 +79,20 @@
             var errorCallback = settings.error;
             delete settings.error;
 
-            return call("ajax", settings, { expectResult: true }).then(function() {
-                if (successCallback) {
+            var promise = call("ajax", settings, { context: context, expectResult: true });
+
+            if (successCallback) {
+                promise.done(function() {
                     successCallback.apply(context, arguments);
-                }
-            }, function() {
-                if (errorCallback) {
+                });
+            }
+            if (errorCallback) {
+                promise.fail(function() {
                     errorCallback.apply(context, arguments);
-                }
-            });
+                });
+            }
+
+            return promise;
         }
 
     };
@@ -117,9 +126,10 @@
 
         var deferred = new $.Deferred();
 
+        var cid;
         if (options.expectResult) {
-            callId++;
-            calls[callId] = {
+            cid = "c" + callId++;
+            calls[cid] = {
                 context: options.context,
                 deferred: deferred
             };
@@ -129,7 +139,7 @@
 
         window.parent.postMessage({
             appId: Speakap.appId,
-            callId: callId,
+            callId: cid,
             consumerSecret: Speakap.consumerSecret,
             method: method,
             settings: data
@@ -143,7 +153,9 @@
         var data = event.data || {};
 
         if (calls.hasOwnProperty(data.callId)) {
-            var callback = calls[callId];
+            var callback = calls[data.callId];
+            delete calls[data.callId];
+
             var deferred = callback.deferred;
             if (data.error.code === 0) {
                 deferred.resolveWith(callback.context, [data.result]);
