@@ -3,7 +3,7 @@
 <html>
     <head>
         <script type="text/javascript">
-            var Speakap = { appId: "{{ appId|safe }}", consumerSecret: "{{ consumerSecret|safe }}" };
+            var Speakap = { appId: "{{app_id|safe}}", signedRequest: "{{signed_request|safe}}" };
         </script>
         <script type="text/javascript" src="js/jquery.min.js"></script>
         <script type="text/javascript" src="js/speakap.js"></script>
@@ -50,22 +50,23 @@
                     var href = $(this).attr(attrName);
                     if (href.substr(0, 1) === "/") {
                         var separator = (href.indexOf("?") > -1 ? "&" : "?");
-                        var parameters = "cs={{ consumerSecret|safe }}&u={{ userEID|safe }}";
-                        $(this).attr(attrName, href + separator + parameters);
+                        $(this).attr(attrName, href + separator + "{{signed_request|safe}}");
                     }
                 });
 
-                var userMap = {};
-                $(".avatar").each(function() {
-                    var userId = $(this).data("voter-id");
-                    if (!userMap[userId]) {
-                        Speakap.API.ajax("/users/" + userId + "/").then(function(user) {
-                            $(".avatar[data-voter-id='" + userId + "']")
-                                .attr("src", user.avatarThumbnailUrl)
-                                .attr("alt", user.fullName);
-                        });
-                        userMap[userId] = true;
-                    }
+                Speakap.doHandshake.then(function() {
+                    var userMap = {};
+                    $(".avatar").each(function() {
+                        var userId = $(this).data("voter-id");
+                        if (!userMap[userId]) {
+                            Speakap.API.ajax("/users/" + userId + "/").then(function(user) {
+                                $(".avatar[data-voter-id='" + userId + "']")
+                                    .attr("src", user.avatarThumbnailUrl)
+                                    .attr("alt", user.fullName);
+                            });
+                            userMap[userId] = true;
+                        }
+                    });
                 });
             }
 
