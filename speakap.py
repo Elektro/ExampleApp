@@ -191,24 +191,25 @@ class API:
     # @return True or False depending on whether the signature matches the parameters.
     #
     def validate_signature(self, params):
-        signature = params["signature"]
+        if "signature" in params:
+            signature = params["signature"]
 
-        keys = params.keys()
-        keys.sort()
-        query_string = "&".join(quote(key, "~") + "=" + quote(params[key], "~") \
-                       for key in keys if key != "signature")
-        encoded_payload = base64.b64encode(query_string)
-        computed_hash = base64.b64encode(hmac.new(self.app_secret, encoded_payload, hashlib.sha256)
-                                             .hexdigest())
+            keys = params.keys()
+            keys.sort()
+            query_string = "&".join(quote(key, "~") + "=" + quote(params[key], "~") \
+                           for key in keys if key != "signature")
+            computed_hash = base64.b64encode(hmac.new(self.app_secret, query_string, hashlib.sha256)
+                                                 .hexdigest())
 
-        return computed_hash == signature
+            return computed_hash == signature
+        else:
+            return False
 
     def _request(self, method, path, data=None):
-        separator = "&" if "?" in path else "?"
-        path += "%saccess_token=%s" % (separator, self.access_token)
-
+        headers = {"Authorization": "Bearer " + self.access_token}
         if urlfetch:
             response = urlfetch.fetch("https://" + SPEAKAP_API_HOST + path,
+                                      headers=headers,
                                       method=method,
                                       payload=data,
                                       validate_certificate=True)
@@ -216,7 +217,7 @@ class API:
             data = response.content
         else:
             connection = httplib.HTTPSConnection(SPEAKAP_API_HOST)
-            connection.request(method, path, data)
+            connection.request(method, path, data, headers)
             response = connection.getresponse()
             status = response.status
             data = response.read()
