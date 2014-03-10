@@ -9,3 +9,6 @@
 
 # PHP Storm IDE files
 .idea
+
+# Qt Creator IDE files
+ExampleApp.creator.user

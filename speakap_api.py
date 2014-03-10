@@ -3,8 +3,12 @@
 import speakap
 
 
-# this should be the App ID of your Speakap App. should be a valid EID
-SPEAKAP_APP_ID = "office-supplies"
-SPEAKAP_APP_SECRET = "gh34fi8h34hc3487qbgk45qv98hrw78mde9"
+SPEAKAP_APP_ID = "000a000000000005"
+SPEAKAP_APP_SECRET = "suppl13s!!!"
 
-speakap_api = speakap.API(SPEAKAP_APP_ID, SPEAKAP_APP_SECRET)
+speakap_api = speakap.API({
+    "scheme": "https",
+    "hostname": "api.speakap.io",
+    "app_id": SPEAKAP_APP_ID,
+    "app_secret": SPEAKAP_APP_SECRET
+})

@@ -1,15 +1,19 @@
 /*!
- * Speakap API integration for 3rd party apps
+ * Speakap API integration for 3rd party apps, version 1.0
  * http://www.speakap.nl/
  *
  * Copyright (C) 2013-2014 Speakap BV
  */
 (function(factory) {
+
+    "use strict";
+
     if (typeof define === "function" && define.amd) {
         // AMD. Register as anonymous module.
         define(["jquery"], factory);
     } else {
         // Browser globals.
+        /* global jQuery */
         window.Speakap = factory(jQuery);
     }
 }(function($, undefined) {
@@ -55,15 +59,17 @@
         /**
          * The signed request posted to the application.
          */
-        this.signedRequest = window.Speakap.signedRequest || "SIGNED REQUEST IS MISSING";
+        this.signedRequest = window.Speakap.signedRequest || "";
 
         /**
          * Token to use to identify the consumer with the API proxy.
          *
          * Will be set by the handshake procedure. Be sure not to call any other methods before the
-         * handshake has completed.
+         * handshake has completed by using the doHandshake promise.
+         *
+         * If this file is loaded in the context of a lightbox, the token is injected automatically.
          */
-        this.token = "";
+        this.token = window.Speakap.token || "";
 
         window.addEventListener("message", $.proxy(this._handleMessage, this));
 
@@ -72,7 +78,59 @@
 
         this._listeners = {};
 
-        this._doHandshake();
+        if (this.signedRequest) {
+            this._doHandshake();
+        }
+    };
+
+    /**
+     * Sends a remote request to the API.
+     *
+     * This method can be used as a replacement for $.ajax(), but with a few differences:
+     * - All requests are automatically signed using the access token of the host application,
+     *   but the app's permissions may be limited based on the App ID.
+     * - Error handlers will receive an error object (with code and message properties) as their
+     *   first argument, instead of a jqXHR object.
+     * - The URL property is interpreted as a path under the Speakap API, limited in scope to
+     *   the current network. Eg. use "/users/" to request
+     *                                    "https://api.speakap.nl/networks/:networkEID/users/".
+     * - The only supported HTTP method is GET.
+     */
+    Speakap.prototype.ajax = function(url, settings) {
+
+        if (settings) {
+            settings.url = url;
+        } else if (typeof url === "string") {
+            settings = { url: url };
+        } else {
+            settings = url;
+        }
+
+        settings.type = "GET";
+
+        var context = settings.context;
+        delete settings.context;
+
+        var successCallback = settings.success;
+        delete settings.success;
+
+        var errorCallback = settings.error;
+        delete settings.error;
+
+        var promise = this._call("ajax", settings, { context: context, expectResult: true });
+
+        if (successCallback) {
+            promise.done(function() {
+                successCallback.apply(context, arguments);
+            });
+        }
+        if (errorCallback) {
+            promise.fail(function() {
+                errorCallback.apply(context, arguments);
+            });
+        }
+
+        return promise;
     };
 
     /**
@@ -131,6 +189,154 @@
         this._listeners[event] = listeners;
     };
 
+    /**
+     * Presents a lightbox to the user.
+     *
+     * For security reasons, the lightbox presented contains a sandboxed iframe whose content is
+     * defined by the parameters given here.
+     *
+     * By default, this iframe has no permissions to execute scripts of any kind. Permissions to
+     * execute scripts are granted if events handlers or JavaScript URLs are specified or when the
+     * hasScript property is explicitly set to true. An important caveat is that when JavaScript
+     * permissions are granted, the lightbox will *not* work in Internet Explorer.
+     *
+     * @param options Required options object. May contain the following properties:
+     *                buttons - Array of button objects for the buttons to show below the lightbox.
+     *                          Each button object may have the following properties:
+     *                          enabled - Boolean indicating whether the button is enabled. Default
+     *                                    is true.
+     *                          label - String label of the button.
+     *                          positioning - String "left" or "right", depending on which side the
+     *                                        button should be displayed. Default is "right".
+     *                          primary - Boolean indicating whether the button is the primary
+     *                                    button. The primary button is styled in the call-to-action
+     *                                    color (typically green) and is selected when the user
+     *                                    presses Ctrl+Enter.
+     *                          type - String type of the button, used for identifying the button.
+     *                                 The following types are predefined:
+     *                                 "close" - Closes the lightbox when clicked.
+     *                                 "resolve" - Resolves the lightbox when clicked.
+     *                                 You can listen to other buttons by listening to the
+     *                                 "click button[data-type='<type>']" event.
+     *                content - HTML content to display in the body of the iframe.
+     *                context - Context in which to execute the promise callbacks.
+     *                css - Array of URLs to CSS resources that should be included by the iframe.
+     *                      Note that Speakap's "base.css" and "branding.css" are always included
+     *                      and don't need to be specified in this array.
+     *                events - Map of event handlers to be active on the given HTML content. The
+     *                         map follows the same format as used by Backbone's delegateEvents()
+     *                         method: http://backbonejs.org/#View-delegateEvents
+     *                         Note that these event handlers execute within the context of the
+     *                         iframe and thus cannot access any variables from their outer scope.
+     *                         Nor will you have access to jQuery methods or other libraries unless
+     *                         you include it yourself as JavaScript resource.
+     *                         Finally, the "submit" event can be caught (and cancelled, by
+     *                         returning false from the event handler) to perform any validation or
+     *                         other processing when the lightbox is resolved.
+     *                hasScripts - This option has to be set to true to enable the execution of
+     *                             scripts in the lightbox. It is implicitly set to true if any
+     *                             events or JavaScript URLs are specified, but has to be explicitly
+     *                             set to true if you specify inline event handlers in your HTML
+     *                             content, for example. An important caveat is that when this
+     *                             property is true (whether implicit or explicit) the lightbox
+     *                             will *not* work in Internet Explorer.
+     *                js - Array of URLs to JavaScript resources that should be loaded by the
+     *                     iframe. Note that you need to include your own reference to this
+     *                     speakap.js file if you want to be able to use this API from the iframe.
+     *                height - Lightbox height in pixels. The minimum permitted height is 100
+     *                         pixels, and the maximum permitted height is 540 pixels.
+     *                title - Title of the lightbox.
+     *                width - Lightbox width in pixels. The minimum permitted width is 100
+     *                        pixels, and the maximum permitted width is 740 pixels.
+     *
+     * @return jQuery Deferred promise that gets fulfilled when the lightbox is resolved, or failed
+     *         when the lightbox is closed otherwise.
+     *
+     * When the lightbox is resolved, the promise callback receives a data parameter that resembles
+     * a form submit like those sent with an HTTP POST request. The data object consists of
+     * key-value pairs with each key being the name of an input element displayed in the lightbox,
+     * and the value being the input element's value.
+     *
+     * All URLs given for CSS and JavaScript resources have to be absolute URLs.
+     *
+     * Within the iframe, this speakap.js file is available if you include it with the JavaScript
+     * resources, giving you access to the global Speakap object from the iframe (including event
+     * handlers defined on the lightbox). Specifically, the following methods can be used from a
+     * lightbox context:
+     * - getLoggedInUser()
+     * - setButtonEnabled()
+     * - showError()
+     */
+    Speakap.prototype.openLightbox = function(options) {
+
+        var data = {};
+        for (var key in options) {
+            if (options.hasOwnProperty(key) && key !== "context") {
+                var value;
+                if (key === "events") {
+                    value = {};
+                    var events = options[key];
+                    for (var eventName in events) {
+                        if (events.hasOwnProperty(eventName)) {
+                            value[eventName] = events[eventName].toString();
+                        }
+                    }
+                } else {
+                    value = options[key];
+                }
+
+                data[key] = value;
+            }
+        }
+
+        if (data.events || data.js) {
+            data.hasScripts = true;
+        }
+
+        return this._call("openLightbox", data, {
+            context: options.context,
+            expectResult: true
+        });
+    };
+
+    /**
+     * Sends a reply to an event generated by the Speakap host application.
+     *
+     * @param event Event to reply to.
+     * @param data Data to send back to the host application.
+     */
+    Speakap.prototype.replyEvent = function(event, data) {
+
+        if (event.eventId) {
+            this._call("replyEvent", $.extend(data, { eventId: event.eventId }));
+        } else {
+            console.log("The host did not expect a reply to this event");
+        }
+    };
+
+    /**
+     * Toggles the enabled state of one of the lightbox's buttons.
+     *
+     * @param type Type of the button to enable or disable.
+     * @param enabled True if the button should be enabled, false if it should be disabled.
+     *
+     * This method is only available from the content of a lightbox iframe.
+     */
+    Speakap.prototype.setButtonEnabled = function(type, enabled) {
+
+        return this._call("setButtonEnabled", { type: type, enabled: enabled });
+    };
+
+    /**
+     * Shows an error message to the user.
+     *
+     * @param message Localized message to show the user.
+     */
+    Speakap.prototype.showError = function(message) {
+
+        return this._call("showError", { message: message });
+    };
+
     // PRIVATE methods
 
     Speakap.prototype._call = function(method, data, options) {
@@ -179,7 +385,7 @@
             var listeners = this._listeners[data.event] || [];
             for (var i = 0; i < listeners.length; i++) {
                 var listener = listeners[i];
-                listener.callback.apply(listener.context, data.arguments);
+                listener.callback.call(listener.context, data.data);
             }
         } else {
             var calls = this._calls;

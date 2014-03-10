@@ -1,0 +1,14 @@
+{
+    "name": { "en-US": "Office Supplies", "nl-NL": "Benodigdheden" },
+    "icon": "https://office-supplies.appspot.com/img/icon.png",
+    "secret": "speakapnetworks",
+    "entries": [
+        {
+            "position": "main",
+            "devices": "all",
+            "url": "https://office-supplies.appspot.com/",
+            "label": { "en-US": "Office Supplies", "nl-NL": "Benodigdheden" },
+            "icon": "\uf07a"
+        }
+    ]
+}
