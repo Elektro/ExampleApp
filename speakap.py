@@ -231,7 +231,7 @@ class API:
         query_string = "&".join(quote(key, "~") + "=" + quote(params[key], "~") \
                        for key in keys if key != "signature")
         computed_hash = base64.b64encode(hmac.new(self.app_secret, query_string, hashlib.sha256)
-                                             .hexdigest())
+                                             .digest())
 
         if computed_hash != signature:
             raise SignatureValidationError("Invalid signature: " + query_string)
